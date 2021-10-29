@@ -11,6 +11,8 @@ import datetime
 import ntpath
 import filetype
 import ccl_bplist
+from pathlib import Path
+from platform import system
 
 def proto_to_msg(bin_file):
     messages_found = []
@@ -36,7 +38,7 @@ def path_to_image_html(filename):
     global exe_path
     global outputDir_name
 
-    path = outputDir + "//cacheFiles//" + filename
+    path = Path(outputDir + "/cacheFiles/" + filename)
     try:
         path = path.replace("\\", "/")
     except Exception:
@@ -46,20 +48,33 @@ def path_to_image_html(filename):
             basename = ntpath.basename(path)
             realpath = os.path.abspath(path)
             kind = filetype.guess(path)
-            relpath = realpath.split("\\")[-2:]
-            relpath = relpath[0]+"/"+relpath[1]
-            
-            if kind.extension == "mp4":
-                return ('<video width="320" height="240" controls> <source src="' + relpath + '" type="video/mp4"> Your browser does not support the video tag. </video> <a href="'+relpath+'"><br>'+basename+'</a>')
-            elif kind.extension == "png":
-                return ('<a href="' + relpath + '"><img src="' + relpath + '" width="150" ><br>'+basename+'</a>')
-            elif kind.extension == "jpg":
-                return ('<a href="' + relpath + '"><img src="' + relpath + '" width="150" ><br>'+basename+'</a>')
+            if platform == "Windows":
+                relpath = realpath.split("\\")[-2:]
             else:
-                return filename + " - Unknown extension: " + kind.extension
+                relpath = realpath.split("/")[-2:]
+            relpath = str(Path(relpath[0]+"/"+relpath[1]))
+            if platform == "Windows":
+                if kind.extension == "mp4":
+                    return ('<video width="320" height="240" controls> <source src="' + (relpath) + '" type="video/mp4"> Your browser does not support the video tag. </video> <a href="'+str(relpath)+'"><br>'+basename+'</a>')
+                elif kind.extension == "png":
+                    return ('<a href="' + str(relpath) + '"><img src="' + str(relpath) + '" width="150" ><br>'+basename+'</a>')
+                elif kind.extension == "jpg":
+                    return ('<a href="' + str(relpath) + '"><img src="' + str(relpath) + '" width="150" ><br>'+basename+'</a>')
+                else:
+                    return filename + " - Unknown extension: " + kind.extension
+            else:
+                if kind.extension == "mp4":
+                    return ('<video width="320" height="240" controls> <source src="' + (relpath) + '" type="video/mp4"> Your browser does not support the video tag. </video> <a href="'+(relpath)+'"><br>'+basename+'</a>')
+                elif kind.extension == "png":
+                    return ('<a href="' + (relpath) + '"><img src="' + (relpath) + '" width="150" ><br>'+basename+'</a>')
+                elif kind.extension == "jpg":
+                    return ('<a href="' + (relpath) + '"><img src="' + (relpath) + '" width="150" ><br>'+basename+'</a>')
+                else:
+                    return filename + " - Unknown extension: " + kind.extension
             
         except Exception as Error:
-            #print(Error)
+            print(Error)
+
             return filename + " missing attachment"
         
     else:
@@ -145,7 +160,6 @@ def getFriendsPlist(group_plist):
                             try:
                                 if i['GROUP_GROUP_PARTICIPANTS_USER_NAMES'] != "$null":
                                     for j in i['GROUP_GROUP_PARTICIPANTS_USER_NAMES']['NS.objects']:
-                                        #print(j)
                                         group_participants.append(str(j))
                                 
                             except Exception as Error:
@@ -160,10 +174,10 @@ def getFriendsPlist(group_plist):
                         except Exception as Error:
                             print(Error)
                             pass
-        except:
-            print("Fel: outer")
+        except Exception as Error:
+            print(Error)
     except Exception as Error:
-        print("ERROR", Error)
+        print(Error)
         return
     resultat = {'Display name': display, 'Username': name, 'User ID': user_id, 'Conversation ID': conversation_id} 
     df_friends = pd.DataFrame(resultat)
@@ -340,11 +354,13 @@ def mergeCacheChats(cache_df, chats_df, persistent_df):
 def getSCPersistentMedia():
 
     persistent_df = pd.DataFrame(columns=['CACHE_KEY', 'TYPE', 'CONVERSATION_ID', 'SERVER_MESSAGE_ID'])
-    files = os.listdir(snapchatFolder+'\Library\Caches\SCPersistentMedia')
+    path = snapchatFolder + "/Library/Caches/SCPersistentMedia/"
+    files = os.listdir(Path(path))
     for file in files:
-        file_path = snapchatFolder+'\Library\Caches\SCPersistentMedia\\'+file
-        if os.stat(file_path).st_size != 0:
-            shutil.copy(file_path, outputDir + '//cacheFiles')
+        file_path = path+file
+        if os.stat(Path(file_path)).st_size != 0:
+            outPutCache = Path(outputDir + '/cacheFiles/')
+            shutil.copy(file_path, outPutCache)
         else:
             pass
         file_split = file.split("_")
@@ -363,9 +379,19 @@ def main():
     global outputDir
     global SCContentFolder
     global uuid
+    global platform
     
+    if len(sys.argv) <2:
+        print("ParseSnapChat.py <Snapchat folder> <Snapchat plist>")
+        sys.exit()
+
+    platform = system()
+    print(platform)
     snapchatFolder = sys.argv[1]
-    groupPlist = sys.argv[2]
+    try:
+        groupPlist = sys.argv[2]
+    except:
+        groupPlist = ""
 
     if os.path.exists(groupPlist) and os.path.exists(snapchatFolder):
         pass
@@ -374,26 +400,42 @@ def main():
         print("Using primary.docobjects instead")
         print("")
         groupPlist = ""
+        
+    if platform == "Windows":
+        uuid32hex = re.compile('[0-9a-f]{32}')
+        userPlist = Path(snapchatFolder + "/Documents/user.plist")
+        uuid = getUserID(userPlist)
+        arroyo = glob.glob("./"+snapchatFolder+"/Documents/user_scoped/**/*arroyo.db*", recursive = True)
+        primaryDoc = glob.glob("./"+snapchatFolder+"/Documents/user_scoped/**/*primary.docobjects*", recursive = True)
+        cacheController = glob.glob("./"+snapchatFolder+"/Documents/global_scoped/cachecontroller/*cache_controller.db*", recursive = True)
+        html = ""
+        outputDir = "./Snapchat_report_" + datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
+        os.makedirs(outputDir+"//cacheFiles", exist_ok = True)
+        SCContentFolder = snapchatFolder + "/Documents/com.snap.file_manager_3_SCContent_" + uuid + "/"
+        
+    elif platform == "Linux":
+        uuid32hex = re.compile('[0-9a-f]{32}')
+        userPlist = Path(snapchatFolder + "/Documents/user.plist")
+        uuid = getUserID(userPlist)
+        arroyo = glob.glob(snapchatFolder+"/Documents/user_scoped/**/*arroyo.db*", recursive = True)
+        primaryDoc = glob.glob(snapchatFolder+"/Documents/user_scoped/**/*primary.docobjects*", recursive = True)
+        cacheController = glob.glob(snapchatFolder+"/Documents/global_scoped/cachecontroller/*cache_controller.db*", recursive = True)
+        html = ""
+        outputDir = "./Snapchat_report_" + datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
+        os.makedirs(outputDir+"//cacheFiles", exist_ok = True)
+        SCContentFolder = snapchatFolder + "/Documents/com.snap.file_manager_3_SCContent_" + uuid + "/"
 
-    uuid32hex = re.compile('[0-9a-f]{32}')
-    userPlist = snapchatFolder + "/Documents/user.plist"
-    uuid = getUserID(userPlist)
-    arroyo = glob.glob("./"+snapchatFolder+"/Documents/user_scoped/**/*arroyo.db*", recursive = True)
-    primaryDoc = glob.glob("./"+snapchatFolder+"/Documents/user_scoped/**/*primary.docobjects*", recursive = True)
-    cacheController = glob.glob("./"+snapchatFolder+"/Documents/global_scoped/cachecontroller/*cache_controller.db*", recursive = True)
-    html = ""
-    outputDir = "./Snapchat_report_" + datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
-    os.makedirs(outputDir+"//cacheFiles", exist_ok = True)
-    SCContentFolder = snapchatFolder + "/Documents/com.snap.file_manager_3_SCContent_" + uuid + "/"
+    else:
+        print(f"Your platform {platform} might not be supported")
     
     if groupPlist != "":
         try:
             friends_df, group_df = getFriendsPlist(groupPlist)
         except Exception as Error:
-            friends_df , group_df= getFriendsPrimary(primaryDoc[0])
+            friends_df , group_df= getFriendsPrimary(Path(primaryDoc[0]))
     else:
-        friends_df, group_df = getFriendsPrimary(primaryDoc[0])
-        
+        friends_df, group_df = getFriendsPrimary(Path(primaryDoc[0]))
+
     chats_df = getChats(arroyo[0])
     chats_df = fixSenders(chats_df, friends_df)
     cache_df = getCache(cacheController[0])
@@ -418,10 +460,5 @@ def main():
 if __name__ == "__main__":
 
     main()
-
-
-    
-    
-    
     
     
