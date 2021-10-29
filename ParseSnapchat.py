@@ -405,9 +405,9 @@ def main():
         uuid32hex = re.compile('[0-9a-f]{32}')
         userPlist = Path(snapchatFolder + "/Documents/user.plist")
         uuid = getUserID(userPlist)
-        arroyo = glob.glob("./"+snapchatFolder+"/Documents/user_scoped/**/*arroyo.db*", recursive = True)
-        primaryDoc = glob.glob("./"+snapchatFolder+"/Documents/user_scoped/**/*primary.docobjects*", recursive = True)
-        cacheController = glob.glob("./"+snapchatFolder+"/Documents/global_scoped/cachecontroller/*cache_controller.db*", recursive = True)
+        arroyo = glob.glob(snapchatFolder+"/Documents/user_scoped/**/*arroyo.db*", recursive = True)
+        primaryDoc = glob.glob(+snapchatFolder+"/Documents/user_scoped/**/*primary.docobjects*", recursive = True)
+        cacheController = glob.glob(snapchatFolder+"/Documents/global_scoped/cachecontroller/*cache_controller.db*", recursive = True)
         html = ""
         outputDir = "./Snapchat_report_" + datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
         os.makedirs(outputDir+"//cacheFiles", exist_ok = True)
