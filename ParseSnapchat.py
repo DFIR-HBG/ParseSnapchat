@@ -43,26 +43,17 @@ def path_to_image_html(filename):
         path = path.replace("\\", "/")
     except Exception:
         pass
-    if os.path.exists(path):
-        try:
-            basename = ntpath.basename(path)
-            realpath = os.path.abspath(path)
-            kind = filetype.guess(path)
-            if platform == "Windows":
-                relpath = realpath.split("\\")[-2:]
-            else:
-                relpath = realpath.split("/")[-2:]
-            relpath = str(Path(relpath[0]+"/"+relpath[1]))
-            if platform == "Windows":
-                if kind.extension == "mp4":
-                    return ('<video width="320" height="240" controls> <source src="' + (relpath) + '" type="video/mp4"> Your browser does not support the video tag. </video> <a href="'+str(relpath)+'"><br>'+basename+'</a>')
-                elif kind.extension == "png":
-                    return ('<a href="' + str(relpath) + '"><img src="' + str(relpath) + '" width="150" ><br>'+basename+'</a>')
-                elif kind.extension == "jpg":
-                    return ('<a href="' + str(relpath) + '"><img src="' + str(relpath) + '" width="150" ><br>'+basename+'</a>')
+    try:
+        if os.path.exists(path):
+            try:
+                basename = ntpath.basename(path)
+                realpath = os.path.abspath(path)
+                kind = filetype.guess(path)
+                if platform == "Windows":
+                    relpath = realpath.split("\\")[-2:]
                 else:
-                    return filename + " - Unknown extension: " + kind.extension
-            else:
+                    relpath = realpath.split("/")[-2:]
+                relpath = str(Path(relpath[0]+"/"+relpath[1]))
                 if kind.extension == "mp4":
                     return ('<video width="320" height="240" controls> <source src="' + (relpath) + '" type="video/mp4"> Your browser does not support the video tag. </video> <a href="'+(relpath)+'"><br>'+basename+'</a>')
                 elif kind.extension == "png":
@@ -71,23 +62,34 @@ def path_to_image_html(filename):
                     return ('<a href="' + (relpath) + '"><img src="' + (relpath) + '" width="150" ><br>'+basename+'</a>')
                 else:
                     return filename + " - Unknown extension: " + kind.extension
-            
-        except Exception as Error:
-            print(Error)
+                
+            except Exception as Error:
+                print(Error)
 
-            return filename + " missing attachment"
-        
-    else:
-        return filename
+                return filename + " missing attachment"
+            
+        else:
+            return filename
+    except:
+        return
 
 def getUserID(userPlist):
-    print("Getting User ID from " + ntpath.basename(userPlist))
-    with open(userPlist, "rb") as f:
-        data = f.read()
-        uuid = re.search('[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', str(data))
-
-    print("")    
-    return(uuid.group(0))
+    try:
+        if os.path.exists(userPlist):
+            print("Getting User ID from " + ntpath.basename(userPlist))
+            print()
+            with open(userPlist, "rb") as f:
+                data = f.read()
+                uuid = re.search('[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', str(data))
+            print("")    
+            return(uuid.group(0))
+        else:
+            print("User.plist not found! User might be logged out from Snapchat. Data will likely be incomplete.")
+            print()
+            return ""
+    except Exception as Error:
+        print(Error)
+        return ""
 
 def getFriendsPlist(group_plist):
     print("Getting friends and groups from " + ntpath.basename(group_plist))
@@ -105,7 +107,7 @@ def getFriendsPlist(group_plist):
                     print("Found key 'user' in plist, this is an older version of storing friends not yet supported by this script")
                 except:
                     pass
-                
+                print()
                 return
             
         with open("test.plist", "rb") as test:
@@ -230,9 +232,14 @@ def fixSenders(df_messages, df_friends):
 def getCache(database):
     print("Getting cache files from "+ ntpath.basename(database))
     conn = sqlite3.connect(database)
-    messagesQuery = f"""select
-    *
-    from CACHE_FILE_CLAIM where USER_ID is '{uuid}' and MEDIA_CONTEXT_TYPE is 3 and DELETED_TIMESTAMP_MILLIS is 0"""
+    if uuid != "":
+        messagesQuery = f"""select
+        *
+        from CACHE_FILE_CLAIM where USER_ID is '{uuid}' and MEDIA_CONTEXT_TYPE is 3 and DELETED_TIMESTAMP_MILLIS is 0"""
+    else:
+        messagesQuery = f"""select
+        *
+        from CACHE_FILE_CLAIM where MEDIA_CONTEXT_TYPE is 3 and DELETED_TIMESTAMP_MILLIS is 0"""
     df = pd.read_sql_query(messagesQuery, conn)
 
     foundFiles = glob.glob(SCContentFolder+'*')
@@ -245,6 +252,7 @@ def getCache(database):
     for index, row in df.iterrows():
         try:
             file = SCContentFolder + row["CACHE_KEY"]
+            file = file.replace("\\", "/")
             if file in foundFiles:
                 fileIndex = foundFiles.index(file)
                 kind = filetype.guess(foundFiles[fileIndex])
@@ -355,6 +363,11 @@ def getSCPersistentMedia():
 
     persistent_df = pd.DataFrame(columns=['CACHE_KEY', 'TYPE', 'CONVERSATION_ID', 'SERVER_MESSAGE_ID'])
     path = snapchatFolder + "/Library/Caches/SCPersistentMedia/"
+    if os.path.isdir(path):
+        pass
+    else:
+        print("Could not find SCPersistentMedia folder, this could be due to no manually saved media in chats")
+        return
     files = os.listdir(Path(path))
     for file in files:
         file_path = path+file
@@ -371,7 +384,16 @@ def getSCPersistentMedia():
             pass
 
     return persistent_df
-
+    
+def getUserIDFromGroups(group_plist):
+    print("Getting UserID from Groups plist")
+    with open(group_plist, "rb")as f:
+        data = plistlib.loads(f.read())
+        
+    for i in data:
+        uuid = re.search('[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', str(i))
+        if uuid != None:
+            return uuid.group(0)
 
 def main():
     global snapchatFolder
@@ -386,7 +408,7 @@ def main():
         sys.exit()
 
     platform = system()
-    print(platform)
+    print(f"Running on {platform}")
     snapchatFolder = sys.argv[1]
     try:
         groupPlist = sys.argv[2]
@@ -401,20 +423,11 @@ def main():
         print("")
         groupPlist = ""
         
-    if platform == "Windows":
-        uuid32hex = re.compile('[0-9a-f]{32}')
-        userPlist = Path(snapchatFolder + "/Documents/user.plist")
-        uuid = getUserID(userPlist)
-        arroyo = glob.glob(snapchatFolder+"/Documents/user_scoped/**/*arroyo.db*", recursive = True)
-        primaryDoc = glob.glob(+snapchatFolder+"/Documents/user_scoped/**/*primary.docobjects*", recursive = True)
-        cacheController = glob.glob(snapchatFolder+"/Documents/global_scoped/cachecontroller/*cache_controller.db*", recursive = True)
-        html = ""
-        outputDir = "./Snapchat_report_" + datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
-        os.makedirs(outputDir+"//cacheFiles", exist_ok = True)
-        SCContentFolder = snapchatFolder + "/Documents/com.snap.file_manager_3_SCContent_" + uuid + "/"
-        
-    elif platform == "Linux":
-        uuid32hex = re.compile('[0-9a-f]{32}')
+    if platform != "Windows" and platform != "Linux":
+        print(f"WARNING! Your platform {platform} might not be supported")
+
+    try:
+        #uuid32hex = re.compile('[0-9a-f]{32}')
         userPlist = Path(snapchatFolder + "/Documents/user.plist")
         uuid = getUserID(userPlist)
         arroyo = glob.glob(snapchatFolder+"/Documents/user_scoped/**/*arroyo.db*", recursive = True)
@@ -423,10 +436,17 @@ def main():
         html = ""
         outputDir = "./Snapchat_report_" + datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
         os.makedirs(outputDir+"//cacheFiles", exist_ok = True)
-        SCContentFolder = snapchatFolder + "/Documents/com.snap.file_manager_3_SCContent_" + uuid + "/"
-
-    else:
-        print(f"Your platform {platform} might not be supported")
+        if uuid != "":
+            SCContentFolder = snapchatFolder + "/Documents/com.snap.file_manager_3_SCContent_" + uuid + "/"
+        else:
+            SCContentFolder = glob.glob(snapchatFolder+"/Documents/com.snap.file_manager_3_SCContent_*")
+            if len(SCContentFolder) == 1:
+                SCContentFolder = SCContentFolder[0] + "/"
+            else:
+                uuid = getUserIDFromGroups(groupPlist)
+                SCContentFolder = snapchatFolder + "/Documents/com.snap.file_manager_3_SCContent_" + uuid + "/"
+    except Exception as Error:
+        print(Error)
     
     if groupPlist != "":
         try:
@@ -444,6 +464,7 @@ def main():
                     
     final_df = final_df.drop_duplicates()
     final_df = final_df.sort_values(by=['Client Conversation ID', 'Creation Timestamp'])
+    final_df = final_df.rename(columns={'Creation Timestamp': 'Creation Timestamp UTC+0', 'Read Timestamp': 'Read Timestamp UTC+0'})
 
     print("Writing HTML report")
     for index, clientConversationID in final_df.groupby('Client Conversation ID'):
@@ -460,5 +481,6 @@ def main():
 if __name__ == "__main__":
 
     main()
-    
+
+
     
