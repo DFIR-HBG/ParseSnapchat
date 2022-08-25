@@ -1,4 +1,5 @@
-# ParseSnapchat
+# ParseSnapchat | OLD
+# Use https://github.com/DFIR-HBG/Snapchat_Auto
 iOS Snapchat parser for chats and cached files\
 Tested on Windows and Linux
 
